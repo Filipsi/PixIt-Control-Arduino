@@ -140,7 +140,7 @@ boolean GetSensorState(int Value){
   WriteBinnaryOut(ConvertToBinnary(Value));
   delayMicroseconds(10);
   WriteBinnaryOut(ConvertToBinnary(Value + 32));
-  delay(10);
+  delayMicroseconds(900);
   boolean state = digitalRead(PinReadNum);
   delayMicroseconds(10);
   WriteBinnaryOut(ConvertToBinnary(Value));
@@ -149,16 +149,17 @@ boolean GetSensorState(int Value){
 
 //Odešle příkaz tiskárně
 void SendCommand(int ValueToSend, int Loops, boolean ConfirmDone) {
-  for(int i = 0; i < Loops; i++){
-    if(digitalRead(PinReadNum) == HIGH){ break; }
-    delayMicroseconds(2000);
+  if(GetSensorState(ValueToSend) == false) {
+    for(int i = 0; i < Loops; i++){
+      delayMicroseconds(2000);
+      WriteBinnaryOut(ConvertToBinnary(ValueToSend));
+      delayMicroseconds(2000);
+      WriteBinnaryOut(ConvertToBinnary(ValueToSend + 16));
+    }
     WriteBinnaryOut(ConvertToBinnary(ValueToSend));
-    delayMicroseconds(2000);
-    WriteBinnaryOut(ConvertToBinnary(ValueToSend + 32 + 16));
+    if(ConfirmDone){ Serial.println("A"); }
+    delayMicroseconds(500);
   }
-  WriteBinnaryOut(ConvertToBinnary(ValueToSend));
-  if(ConfirmDone){ Serial.println("A"); }
-  delayMicroseconds(500);
 }
 
 //Odesílá příkazy a kontrolu stav zenzoru tak dlouho dokud není kontrolovaný senzor sepnut
