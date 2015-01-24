@@ -33,32 +33,26 @@ void loop() {
         String Axis = ReadData.substring(1, 2);
         String Direction = ReadData.substring(2, 3);
         int Repeat = ReadData.substring(ReadData.indexOf('(') + 1, ReadData.indexOf(')')).toInt();
-        int ValueToSend = 0;
         
         if(Axis == "X") {
            if(Direction == "L"){
-             ValueToSend = moveXleft;
+             SendCommand(moveXleft, Repeat, true);
            }else if(Direction == "R") {
-             ValueToSend = moveXright;
+             SendCommand(moveXright, Repeat, true);
            }
         }else if(Axis == "Y") {
            if(Direction == "U"){
-             ValueToSend = moveYup;
+             SendCommand(moveYup, Repeat, true);
            }else if(Direction == "D") {
-             ValueToSend = moveYdown;
+             SendCommand(moveYdown, Repeat, true);
            }
         }else if(Axis == "Z") {
            if(Direction == "U"){
-             ValueToSend = moveZup;
+             SendCommand(moveZup, Repeat, true);
            }else if(Direction == "D") {
-             ValueToSend = moveZdown;
+             SendCommand(moveZdown, Repeat, true);
            }
-        }
-
-        if(ValueToSend != 0) {
-          SendCommand(ValueToSend, Repeat, true);
-        }
-        
+        }     
     }else if(Operation == "S") {
       String Part = ReadData.substring(1, 2);
       String Status = ReadData.substring(2, 3);
@@ -72,11 +66,11 @@ void loop() {
         }
       }else if(Part == "D") {
         if(Status == "L"){
-          ValueToSend = drillOnLeft;
+          SendCommand(drillOnLeft, 1, true);
         }else if(Status == "R") {
-          ValueToSend = drillOnRight;
+          SendCommand(drillOnRight, 1, true);
         }else if(Status == "0") {
-          ValueToSend = drillOff;
+          SendCommand(drillOff, 1, true);
         }else if(Status == "U") {
           SendCommandUntil(moveZup, true, 2000, true);
         }else if(Status == "D"){
@@ -98,12 +92,7 @@ void loop() {
         }else if(Status == "Y") {
           SendCommandUntil(moveYup, true, 2000, true);
         }
-      }
-      
-      if(ValueToSend != 0){
-        SendCommand(ValueToSend, 1, true);
-      }
-      
+      }    
     }else if(Operation == "G") {
       String Part = ReadData.substring(1, 2);
       
@@ -116,11 +105,8 @@ void loop() {
       String Part = ReadData.substring(1, 2);
       
       if(Part == "N") {
-        int num = ReadData.substring(ReadData.indexOf('(') + 1, ReadData.indexOf(')')).toInt();
-        
+        int num = ReadData.substring(ReadData.indexOf('(') + 1, ReadData.indexOf(')')).toInt();   
         WriteBinnaryOut(ConvertToBinnary(num));
-        Serial.println(num);
-        Serial.println(ConvertToBinnary(num));
       }      
     }
     
