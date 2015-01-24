@@ -112,6 +112,16 @@ void loop() {
          boolean SensorState = GetSensorState(SensorValue);
          Serial.println(SensorState);
       }
+    } else if(Operation == "W") {
+      String Part = ReadData.substring(1, 2);
+      
+      if(Part == "N") {
+        int num = ReadData.substring(ReadData.indexOf('(') + 1, ReadData.indexOf(')')).toInt();
+        
+        WriteBinnaryOut(ConvertToBinnary(num));
+        Serial.println(num);
+        Serial.println(ConvertToBinnary(num));
+      }      
     }
     
     ReadData = "";
@@ -157,9 +167,9 @@ void SendCommand(int ValueToSend, int Loops, boolean ConfirmDone) {
       WriteBinnaryOut(ConvertToBinnary(ValueToSend + 16));
     }
     WriteBinnaryOut(ConvertToBinnary(ValueToSend));
-    if(ConfirmDone){ Serial.println("A"); }
     delayMicroseconds(500);
   }
+  if(ConfirmDone){ Serial.println("A"); }
 }
 
 //Odesílá příkazy a kontrolu stav zenzoru tak dlouho dokud není kontrolovaný senzor sepnut
