@@ -1,3 +1,71 @@
+#include <LiquidCrystal.h>
+
+byte ProgressBar0[8] = {
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000
+};
+
+byte ProgressBar1[8] = {
+  B00000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B00000
+};
+
+byte ProgressBar2[8] = {
+  B00000,
+  B11000,
+  B11000,
+  B11000,
+  B11000,
+  B11000,
+  B11000,
+  B00000
+};
+
+byte ProgressBar3[8] = {
+  B00000,
+  B11100,
+  B11100,
+  B11100,
+  B11100,
+  B11100,
+  B11100,
+  B00000
+};
+
+byte ProgressBar4[8] = {
+  B00000,
+  B11110,
+  B11110,
+  B11110,
+  B11110,
+  B11110,
+  B11110,
+  B00000
+};
+
+byte ProgressBar5[8] = {
+  B00000,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B11111,
+  B00000
+};
+
 const int moveXleft = 128 + 1;
 const int moveXright = 128 + 2;
 const int moveYup = 128 + 3;
@@ -10,29 +78,47 @@ const int drillOnRight = 128 + 9;
 const int drillOnLeft = 128 + 10;
 const int drillOff = 128 + 11;
 
-String ReadData = "";
-int PinReadNum = 12;
+LiquidCrystal lcd(2, 3, 5, 6, 7, 8);
 
-void setup() {                
+String MessageData = "";
+char PinOutputNum[6] = { 14, 15, 16, 17, 18, 19 };
+int PinReadNum = 9;
+
+void setup() {
+  lcd.createChar(0, ProgressBar0);
+  lcd.createChar(1, ProgressBar1); 
+  lcd.createChar(2, ProgressBar2); 
+  lcd.createChar(3, ProgressBar3); 
+  lcd.createChar(4, ProgressBar4); 
+  lcd.createChar(5, ProgressBar5); 
+  lcd.begin(16, 2);
+  LcdPrintMessage("LCD ready!", "Loading ...");
+  delay(1000);
+  
   Serial.begin(115200);
-  for(int i = 2; i <= 9; i++){pinMode(i, OUTPUT);}
+  LcdPrintMessage("Serial ready!", "Loading ...");
+  delay(1000);
+  
+  for (int i = 0; i < sizeof(PinOutputNum) - 1; i++) { pinMode(PinOutputNum[i], OUTPUT); }
   pinMode(PinReadNum, INPUT);
+  LcdPrintMessage("Arduino ready!", "");
+  delay(1500);
 }
 
 void loop() {
   if (Serial.available()) {
     delay(1);
     while(Serial.available()){
-      ReadData += (char)Serial.read();
+      MessageData += (char)Serial.read();
     }
   }
   
-  if(ReadData != "") {
-    String Operation = ReadData.substring(0, 1);
+  if(MessageData != "") {
+    String Operation = MessageData.substring(0, 1);
     if(Operation == "M"){
-        String Axis = ReadData.substring(1, 2);
-        String Direction = ReadData.substring(2, 3);
-        int Repeat = ReadData.substring(ReadData.indexOf('(') + 1, ReadData.indexOf(')')).toInt();
+        String Axis = MessageData.substring(1, 2);
+        String Direction = MessageData.substring(2, 3);
+        int Repeat = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')')).toInt();
         
         if(Axis == "X") {
            if(Direction == "L"){
@@ -54,8 +140,8 @@ void loop() {
            }
         }     
     }else if(Operation == "S") {
-      String Part = ReadData.substring(1, 2);
-      String Status = ReadData.substring(2, 3);
+      String Part = MessageData.substring(1, 2);
+      String Status = MessageData.substring(2, 3);
       int ValueToSend = 0;
       
       if(Part == "P") {
@@ -94,23 +180,39 @@ void loop() {
         }
       }    
     }else if(Operation == "G") {
-      String Part = ReadData.substring(1, 2);
+      String Part = MessageData.substring(1, 2);
       
       if(Part = "S") {
-         int SensorValue = ReadData.substring(ReadData.indexOf('(') + 1, ReadData.indexOf(')')).toInt();
-         boolean SensorState = GetSensorState(SensorValue);
-         Serial.println(SensorState);
+         int SensorNumber = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')')).toInt();
+         Serial.println(GetSensorState(SensorNumber));
       }
     } else if(Operation == "W") {
-      String Part = ReadData.substring(1, 2);
+      String Part = MessageData.substring(1, 2);
       
       if(Part == "N") {
-        int num = ReadData.substring(ReadData.indexOf('(') + 1, ReadData.indexOf(')')).toInt();   
+        int num = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')')).toInt();   
         WriteBinnaryOut(ConvertToBinnary(num));
       }      
+    } else if(Operation == "D") {
+      String Part = MessageData.substring(1, 2);
+      
+      if(Part == "P") {
+        int commandsCompleted = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(',')).toInt();  
+        int commandsCount = MessageData.substring(MessageData.indexOf(',') + 1, MessageData.indexOf(')')).toInt();  
+        LcdPrintProgressBar(commandsCompleted, commandsCount); 
+      } else if(Part == "T") {
+        String text = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')'));
+        lcd.print(text);
+      } else if(Part == "S") {
+        int xPos = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(',')).toInt();  
+        int yPos = MessageData.substring(MessageData.indexOf(',') + 1, MessageData.indexOf(')')).toInt();  
+        lcd.setCursor(xPos, yPos);
+      } else if(Part == "C") {
+        lcd.clear();
+      }
     }
     
-    ReadData = "";
+    MessageData = "";
   }
   
 }
@@ -122,11 +224,11 @@ String ConvertToBinnary(int Value) {
 
 //Vypíše vstupní binární data na výstupy
 void WriteBinnaryOut(String Data) {
-  for(int i = 0; i < 8; i++) {
+  for(int i = 0; i < sizeof(PinOutputNum) - 1; i++) {
     if(i <= Data.length()){
-      digitalWrite(9 - i, Data.substring(i, i+1).toInt());
+      digitalWrite(PinOutputNum[i], Data.substring(i, i + 1).toInt());
     }else{
-      digitalWrite(9 - i, LOW);
+      digitalWrite(PinOutputNum[i], LOW);
     }
   }
 }
@@ -176,4 +278,33 @@ void SendCommandUntil(int Val, boolean UseMicroseconds, int Time, boolean Confir
   delayMicroseconds(500);
 }
 
+void LcdPrintMessage(String MessageR1, String MessageR2) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(MessageR1);
+  lcd.setCursor(0, 1);
+  lcd.print(MessageR2);  
+}
 
+void LcdPrintProgressBar(int Value, int ValueMax) {
+  byte procentage = ((float) Value) / ValueMax * 100;
+  byte lines = ((float) 80) / 100 * procentage;
+  
+  lcd.clear();
+  for(byte i = 0; i < 80; i += 5) {
+    lcd.setCursor(round(i / 5), 0);
+    byte segmentValue = lines - (round(i / 5) * 5);
+    if(segmentValue > 5) {
+      if(segmentValue <= lines) {
+        lcd.write(byte(5)); 
+      } else {
+        lcd.write(byte(0)); 
+      }   
+    } else {
+      lcd.write(byte(segmentValue));  
+    }
+  }
+  
+  lcd.setCursor(16 / 2 - ((String(procentage) + "%").length() / 2), 1);
+  lcd.print(String(procentage) + "%");
+}
