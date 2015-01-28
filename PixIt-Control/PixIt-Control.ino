@@ -1,4 +1,6 @@
 #include <LiquidCrystal.h>
+#include <SPI.h>
+#include <Ethernet.h>
 
 byte ProgressBar0[8] = {
   B00000,
@@ -66,23 +68,27 @@ byte ProgressBar5[8] = {
   B00000
 };
 
-const int moveXleft = 128 + 1;
-const int moveXright = 128 + 2;
-const int moveYup = 128 + 3;
-const int moveYdown = 128 + 4;
-const int moveZup = 128 + 5;
-const int moveZdown = 128 + 6;
-const int penUp = 128 + 7;
-const int penDown = 128 + 8;
-const int drillOnRight = 128 + 9;
-const int drillOnLeft = 128 + 10;
-const int drillOff = 128 + 11;
+const int moveXleft = 1;
+const int moveXright = 2;
+const int moveYup = 3;
+const int moveYdown = 4;
+const int moveZup = 5;
+const int moveZdown = 6;
+const int penUp = 7;
+const int penDown = 8;
+const int drillOnRight = 9;
+const int drillOnLeft = 10;
+const int drillOff = 11;
+
+byte MacAddress[] = { 0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x02 };
+int EthernetServerPort = 25567;
+String MessageData = "";
+byte PinOutputNum[6] = { 14, 15, 16, 17, 18, 19 };
+int PinReadNum = 9;
 
 LiquidCrystal lcd(2, 3, 5, 6, 7, 8);
-
-String MessageData = "";
-char PinOutputNum[6] = { 14, 15, 16, 17, 18, 19 };
-int PinReadNum = 9;
+EthernetServer HostServer = EthernetServer(EthernetServerPort);
+EthernetClient ConnectedClient;
 
 void setup() {
   lcd.createChar(0, ProgressBar0);
@@ -92,23 +98,40 @@ void setup() {
   lcd.createChar(4, ProgressBar4); 
   lcd.createChar(5, ProgressBar5); 
   lcd.begin(16, 2);
-  LcdPrintMessage("LCD ready!", "Loading ...");
-  delay(1000);
   
   Serial.begin(115200);
-  LcdPrintMessage("Serial ready!", "Loading ...");
-  delay(1000);
   
-  for (int i = 0; i < sizeof(PinOutputNum) - 1; i++) { pinMode(PinOutputNum[i], OUTPUT); }
+  for (int i = 0; i < sizeof(PinOutputNum); i++) { pinMode(PinOutputNum[i], OUTPUT); }
   pinMode(PinReadNum, INPUT);
-  LcdPrintMessage("Arduino ready!", "");
-  delay(1500);
+  
+  delay(500);
+  if(GetSensorState(15)) {
+    LcdPrintMessage("Arduino ready!", "Retriving IP ...");
+    InitEthernet();
+  } else {
+    LcdPrintMessage("Arduino ready!", "USB Mode");
+  }
 }
 
 void loop() {
-  if (Serial.available()) {
-    delay(1);
-    while(Serial.available()){
+
+  EthernetClient client = HostServer.available();
+  if(client.connected() && ConnectedClient.connected() == false) {
+    ConnectedClient = client;
+  }
+  
+  if(ConnectedClient.connected()) {
+    if (ConnectedClient.available() > 0) {
+      delay(3);
+      while(ConnectedClient.available() > 0) {
+        MessageData += (char)ConnectedClient.read();
+      }
+    }
+  }
+  
+  if (Serial.available() > 0 && MessageData == "") {
+    delay(3);
+    while(Serial.available() > 0){
       MessageData += (char)Serial.read();
     }
   }
@@ -182,9 +205,30 @@ void loop() {
     }else if(Operation == "G") {
       String Part = MessageData.substring(1, 2);
       
-      if(Part = "S") {
+      if(Part == "S") {
          int SensorNumber = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')')).toInt();
-         Serial.println(GetSensorState(SensorNumber));
+         boolean responce = GetSensorState(SensorNumber);
+         Serial.println(responce); if(ConnectedClient.connected()) { ConnectedClient.println(responce); }         
+      } else if(Part == "L") {
+        String message = "PinList:";
+        for (int i = 0; i < sizeof(PinOutputNum); i++) { 
+           message += PinOutputNum[i];
+           message += ",";
+        }
+        message += PinReadNum;
+        Serial.println(message); if(ConnectedClient.connected()) { ConnectedClient.println(message); }        
+      } else if(Part == "P") {
+        int pin = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')')).toInt();
+        boolean responce = digitalRead(pin);
+        Serial.println(responce); if(ConnectedClient.connected()) { ConnectedClient.println(responce); }       
+      } else  if(Part == "V") {
+        String message = "StateList:";
+        for (int i = 0; i < sizeof(PinOutputNum); i++) { 
+           message += digitalRead(PinOutputNum[i]);
+           message += ",";
+        }
+        message += digitalRead(PinReadNum);
+        Serial.println(message); if(ConnectedClient.connected()) { ConnectedClient.println(message); }
       }
     } else if(Operation == "W") {
       String Part = MessageData.substring(1, 2);
@@ -192,7 +236,15 @@ void loop() {
       if(Part == "N") {
         int num = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')')).toInt();   
         WriteBinnaryOut(ConvertToBinnary(num));
-      }      
+        delayMicroseconds(50);
+        Serial.println("A");
+      } else if (Part == "P") {
+        int pinNum = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(',')).toInt();  
+        int val = MessageData.substring(MessageData.indexOf(',') + 1, MessageData.indexOf(')')).toInt();  
+        digitalWrite(pinNum, val);
+        delayMicroseconds(50);
+        Serial.println("A");
+      }    
     } else if(Operation == "D") {
       String Part = MessageData.substring(1, 2);
       
@@ -200,15 +252,20 @@ void loop() {
         int commandsCompleted = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(',')).toInt();  
         int commandsCount = MessageData.substring(MessageData.indexOf(',') + 1, MessageData.indexOf(')')).toInt();  
         LcdPrintProgressBar(commandsCompleted, commandsCount); 
+        delayMicroseconds(50);
       } else if(Part == "T") {
         String text = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')'));
         lcd.print(text);
+        delayMicroseconds(50);
       } else if(Part == "S") {
         int xPos = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(',')).toInt();  
         int yPos = MessageData.substring(MessageData.indexOf(',') + 1, MessageData.indexOf(')')).toInt();  
         lcd.setCursor(xPos, yPos);
+        delayMicroseconds(50);
       } else if(Part == "C") {
         lcd.clear();
+        lcd.setCursor(0, 0);
+        delayMicroseconds(50);
       }
     }
     
@@ -224,9 +281,9 @@ String ConvertToBinnary(int Value) {
 
 //Vypíše vstupní binární data na výstupy
 void WriteBinnaryOut(String Data) {
-  for(int i = 0; i < sizeof(PinOutputNum) - 1; i++) {
-    if(i <= Data.length()){
-      digitalWrite(PinOutputNum[i], Data.substring(i, i + 1).toInt());
+  for(int i = 0; i < sizeof(PinOutputNum); i++) {
+    if(i < Data.length()){
+      digitalWrite(PinOutputNum[i], Data.substring(Data.length() - i - 1, Data.length() - i).toInt());
     }else{
       digitalWrite(PinOutputNum[i], LOW);
     }
@@ -257,7 +314,7 @@ void SendCommand(int ValueToSend, int Loops, boolean ConfirmDone) {
     WriteBinnaryOut(ConvertToBinnary(ValueToSend));
     delayMicroseconds(500);
   }
-  if(ConfirmDone){ Serial.println("A"); }
+  if(ConfirmDone){ Serial.println("A"); if(ConnectedClient.connected()) { ConnectedClient.println("A"); } }
 }
 
 //Odesílá příkazy a kontrolu stav zenzoru tak dlouho dokud není kontrolovaný senzor sepnut
@@ -274,7 +331,7 @@ void SendCommandUntil(int Val, boolean UseMicroseconds, int Time, boolean Confir
     WriteBinnaryOut(ConvertToBinnary(Val + 32 + 16)); 
   }
   WriteBinnaryOut(ConvertToBinnary(Val));
-  if(ConfirmDone){ Serial.println("A"); }
+  if(ConfirmDone){ Serial.println("A"); if(ConnectedClient.connected()) { ConnectedClient.println("A"); } }
   delayMicroseconds(500);
 }
 
@@ -307,4 +364,19 @@ void LcdPrintProgressBar(int Value, int ValueMax) {
   
   lcd.setCursor(16 / 2 - ((String(procentage) + "%").length() / 2), 1);
   lcd.print(String(procentage) + "%");
+}
+
+//Nastaví ethernet připojení
+void InitEthernet() {
+  Ethernet.maintain();
+  Ethernet.begin(MacAddress);
+  
+  String ip = "";
+  for (byte thisByte = 0; thisByte < 4; thisByte++) {
+    ip += Ethernet.localIP()[thisByte];
+    if(thisByte < 3) { Serial.print("."); ip += "."; } else { Serial.print("\n"); }
+  }
+  LcdPrintMessage("Printer ready!", ip);
+  
+  HostServer.begin();
 }
