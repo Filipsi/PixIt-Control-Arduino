@@ -85,6 +85,7 @@ int EthernetServerPort = 25567;
 String MessageData = "";
 byte PinOutputNum[6] = { 14, 15, 16, 17, 18, 19 };
 int PinReadNum = 9;
+boolean EthnernetEnabled = false;
 
 LiquidCrystal lcd(2, 3, 5, 6, 7, 8);
 EthernetServer HostServer = EthernetServer(EthernetServerPort);
@@ -115,16 +116,18 @@ void setup() {
 
 void loop() {
 
-  EthernetClient client = HostServer.available();
-  if(client.connected() && ConnectedClient.connected() == false) {
-    ConnectedClient = client;
-  }
-  
-  if(ConnectedClient.connected()) {
-    if (ConnectedClient.available() > 0) {
-      delay(3);
-      while(ConnectedClient.available() > 0) {
-        MessageData += (char)ConnectedClient.read();
+  if(EthnernetEnabled) {
+    EthernetClient client = HostServer.available();
+    if(client.connected() && ConnectedClient.connected() == false) {
+      ConnectedClient = client;
+    }
+    
+    if(ConnectedClient.connected()) {
+      if (ConnectedClient.available() > 0) {
+        delay(3);
+        while(ConnectedClient.available() > 0) {
+          MessageData += (char)ConnectedClient.read();
+        }
       }
     }
   }
@@ -236,13 +239,11 @@ void loop() {
       if(Part == "N") {
         int num = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')')).toInt();   
         WriteBinnaryOut(ConvertToBinnary(num));
-        delayMicroseconds(50);
         Serial.println("A");
       } else if (Part == "P") {
         int pinNum = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(',')).toInt();  
         int val = MessageData.substring(MessageData.indexOf(',') + 1, MessageData.indexOf(')')).toInt();  
         digitalWrite(pinNum, val);
-        delayMicroseconds(50);
         Serial.println("A");
       }    
     } else if(Operation == "D") {
@@ -252,20 +253,20 @@ void loop() {
         int commandsCompleted = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(',')).toInt();  
         int commandsCount = MessageData.substring(MessageData.indexOf(',') + 1, MessageData.indexOf(')')).toInt();  
         LcdPrintProgressBar(commandsCompleted, commandsCount); 
-        delayMicroseconds(50);
+        Serial.println("D"); if(ConnectedClient.connected()) { ConnectedClient.println("D"); }
       } else if(Part == "T") {
         String text = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(')'));
         lcd.print(text);
-        delayMicroseconds(50);
+        Serial.println("D"); if(ConnectedClient.connected()) { ConnectedClient.println("D"); }
       } else if(Part == "S") {
         int xPos = MessageData.substring(MessageData.indexOf('(') + 1, MessageData.indexOf(',')).toInt();  
         int yPos = MessageData.substring(MessageData.indexOf(',') + 1, MessageData.indexOf(')')).toInt();  
         lcd.setCursor(xPos, yPos);
-        delayMicroseconds(50);
+        Serial.println("D"); if(ConnectedClient.connected()) { ConnectedClient.println("D"); }
       } else if(Part == "C") {
         lcd.clear();
         lcd.setCursor(0, 0);
-        delayMicroseconds(50);
+        Serial.println("D"); if(ConnectedClient.connected()) { ConnectedClient.println("D"); }
       }
     }
     
@@ -379,4 +380,5 @@ void InitEthernet() {
   LcdPrintMessage("Printer ready!", ip);
   
   HostServer.begin();
+  EthnernetEnabled = true;
 }
